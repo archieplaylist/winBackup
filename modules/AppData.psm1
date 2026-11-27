@@ -50,7 +50,9 @@ function Backup-AppData {
         [Parameter(Mandatory = $true)]
         [PSCustomObject]$Config,
 
-        [switch]$DryRun
+        [switch]$DryRun,
+        [switch]$ShowProgress,
+        [string]$Activity = 'AppData'
     )
 
     Write-Log '=== Starting AppData Backup ===' -Level INFO
@@ -78,7 +80,9 @@ function Backup-AppData {
             -Retries $Config.robocopyRetries `
             -WaitSeconds $Config.robocopyWaitSeconds `
             -ConflictPolicy 'Overwrite' `
-            -DryRun:$DryRun
+            -DryRun:$DryRun `
+            -ShowProgress:$ShowProgress `
+            -Activity ("$Activity - $scope")
 
         if ($res.Success) {
             $stats.scopesBackedUp += $scope

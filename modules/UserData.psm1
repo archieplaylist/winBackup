@@ -55,7 +55,9 @@ function Backup-UserData {
         [Parameter(Mandatory = $true)]
         [PSCustomObject]$Config,
 
-        [switch]$DryRun
+        [switch]$DryRun,
+        [switch]$ShowProgress,
+        [string]$Activity = 'UserData'
     )
 
     Write-Log '=== Starting User Data Backup ===' -Level INFO
@@ -83,7 +85,9 @@ function Backup-UserData {
             -Retries $Config.robocopyRetries `
             -WaitSeconds $Config.robocopyWaitSeconds `
             -ConflictPolicy 'Overwrite' `
-            -DryRun:$DryRun
+            -DryRun:$DryRun `
+            -ShowProgress:$ShowProgress `
+            -Activity ("$Activity - $folderName")
 
         if ($res.Success) {
             $stats.foldersBackedUp += $folderName
@@ -106,7 +110,9 @@ function Backup-UserData {
                 -Retries $Config.robocopyRetries `
                 -WaitSeconds $Config.robocopyWaitSeconds `
                 -ConflictPolicy 'Overwrite' `
-                -DryRun:$DryRun
+                -DryRun:$DryRun `
+                -ShowProgress:$ShowProgress `
+                -Activity ("$Activity - $dotItem")
             if ($res.Success) {
                 $stats.dotfilesBackedUp += $dotItem
             }

@@ -78,7 +78,9 @@ function Backup-BrowserData {
         [PSCustomObject]$Config,
 
         [switch]$DryRun,
-        [switch]$NonInteractive
+        [switch]$NonInteractive,
+        [switch]$ShowProgress,
+        [string]$Activity = 'BrowserData'
     )
 
     Write-Log '=== Starting Browser Data Backup ===' -Level INFO
@@ -113,7 +115,9 @@ function Backup-BrowserData {
             -Retries $Config.robocopyRetries `
             -WaitSeconds $Config.robocopyWaitSeconds `
             -ConflictPolicy 'Overwrite' `
-            -DryRun:$DryRun
+            -DryRun:$DryRun `
+            -ShowProgress:$ShowProgress `
+            -Activity ("$Activity - $($browser.Name)")
 
         if ($res.Success) {
             $stats.browsersBackedUp += $browser.Name

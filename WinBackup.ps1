@@ -180,23 +180,51 @@ function Invoke-BackupWorkflow {
 
     $results = [ordered]@{}
 
-    if ($SelectedCategories -contains 'UserData') {
-        $results['UserData'] = Backup-UserData -BackupDir $backupDir -Config $Config -DryRun:$IsDryRun
-    }
-    if ($SelectedCategories -contains 'AppData') {
-        $results['AppData'] = Backup-AppData -BackupDir $backupDir -Config $Config -DryRun:$IsDryRun
-    }
-    if ($SelectedCategories -contains 'BrowserData') {
-        $results['BrowserData'] = Backup-BrowserData -BackupDir $backupDir -Config $Config -DryRun:$IsDryRun -NonInteractive:$IsNonInteractive
-    }
-    if ($SelectedCategories -contains 'Credentials') {
-        $results['Credentials'] = Backup-WindowsCredentials -BackupDir $backupDir -EncryptionPassword $encPassword -DryRun:$IsDryRun
-    }
-    if ($SelectedCategories -contains 'WifiProfiles') {
-        $results['WifiProfiles'] = Backup-WifiProfiles -BackupDir $backupDir -EncryptionPassword $encPassword -DryRun:$IsDryRun
-    }
-    if ($SelectedCategories -contains 'InstalledApps') {
-        $results['InstalledApps'] = Backup-InstalledApps -BackupDir $backupDir -DryRun:$IsDryRun
+    # Show live progress on an interactive console; keep automation output clean.
+    $isOutputRedirected = $false
+    try { $isOutputRedirected = [Console]::IsOutputRedirected } catch { }
+    $showProgress = (-not $IsNonInteractive) -and (-not $isOutputRedirected)
+
+    $orderedCategories = @($AllCategories | Where-Object { $SelectedCategories -contains $_ })
+    $totalCategories = $orderedCategories.Count
+    $categoryIndex = 0
+    $workflowStart = Get-Date
+
+    foreach ($category in $orderedCategories) {
+        $categoryIndex++
+        $activity = "[$categoryIndex/$totalCategories] $category"
+        Write-Log "--- Category $categoryIndex of ${totalCategories}: $category ---" -Level INFO
+        $categoryStart = Get-Date
+
+        switch ($category) {
+            'UserData' {
+                $results['UserData'] = Backup-UserData -BackupDir $backupDir -Config $Config `
+                    -DryRun:$IsDryRun -ShowProgress:$showProgress -Activity $activity
+            }
+            'AppData' {
+                $results['AppData'] = Backup-AppData -BackupDir $backupDir -Config $Config `
+                    -DryRun:$IsDryRun -ShowProgress:$showProgress -Activity $activity
+            }
+            'BrowserData' {
+                $results['BrowserData'] = Backup-BrowserData -BackupDir $backupDir -Config $Config `
+                    -DryRun:$IsDryRun -NonInteractive:$IsNonInteractive `
+                    -ShowProgress:$showProgress -Activity $activity
+            }
+            'Credentials' {
+                $results['Credentials'] = Backup-WindowsCredentials -BackupDir $backupDir `
+                    -EncryptionPassword $encPassword -DryRun:$IsDryRun
+            }
+            'WifiProfiles' {
+                $results['WifiProfiles'] = Backup-WifiProfiles -BackupDir $backupDir `
+                    -EncryptionPassword $encPassword -DryRun:$IsDryRun
+            }
+            'InstalledApps' {
+                $results['InstalledApps'] = Backup-InstalledApps -BackupDir $backupDir -DryRun:$IsDryRun
+            }
+        }
+
+        $categoryElapsed = (Get-Date) - $categoryStart
+        Write-Log ("Category {0} finished in {1}." -f $category, (Format-Duration -Seconds $categoryElapsed.TotalSeconds)) -Level INFO
     }
 
     if (-not $IsDryRun) {
@@ -209,7 +237,8 @@ function Invoke-BackupWorkflow {
             results           = $results
         }
         Write-BackupManifest -BackupDir $backupDir -ManifestData $manifest | Out-Null
-        Write-Log "Backup completed successfully: $backupDir" -Level OK
+        $totalElapsed = (Get-Date) - $workflowStart
+        Write-Log ("Backup completed successfully in {0}: {1}" -f (Format-Duration -Seconds $totalElapsed.TotalSeconds), $backupDir) -Level OK
     }
     else {
         Write-Log '[DryRun] Dry-run backup complete. No files were written.' -Level DRYRUN

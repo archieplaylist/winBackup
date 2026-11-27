@@ -27,6 +27,15 @@ Wi-Fi keys and Generic Windows Credentials are sensitive. By default, WinBackup 
    - `[3]` **Restore from Backup** (includes Dry-Run preview and conflict policy selection)
    - `[4]` **Verify a Backup** (validates `manifest.json`, folders, and encryption password)
 
+### Live Progress
+While backing up, WinBackup shows a live progress bar for the current category and folder, including bytes copied, percentage, transfer speed, and ETA:
+
+```text
+[2/6] AppData - Local [##########------------]  48%  4.2 GB / 8.7 GB  62 MB/s  ETA 01:12
+```
+
+Each category also logs its name, position (`Category 2 of 6`), and elapsed time when it finishes. Progress is shown automatically in an interactive console and is disabled with `-NonInteractive` or when output is redirected, so automated logs stay clean.
+
 ### CLI Mode (PowerShell)
 
 ```powershell
