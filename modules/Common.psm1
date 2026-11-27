@@ -298,6 +298,51 @@ function Backup-ConflictingFiles {
     return $backedUpCount
 }
 
+function Resolve-ExcludeDirs {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BaseRoot,
+
+        [string[]]$ExcludeDirs = @(),
+        [string[]]$ExtraExcludeDirs = @(),
+        [string]$ScopePrefix = ''
+    )
+
+    $resolved = New-Object System.Collections.Generic.List[string]
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    $allEntries = @()
+    if ($ExcludeDirs) { $allEntries += $ExcludeDirs }
+    if ($ExtraExcludeDirs) { $allEntries += $ExtraExcludeDirs }
+
+    foreach ($rawEntry in $allEntries) {
+        if ([string]::IsNullOrWhiteSpace($rawEntry)) { continue }
+        $entry = $rawEntry.Trim()
+
+        if ([System.IO.Path]::IsPathRooted($entry)) {
+            $candidate = $entry.TrimEnd('\')
+            if ($candidate -match '^[A-Za-z]:$') { $candidate += '\' }
+        }
+        elseif ($entry.Contains('\')) {
+            $rel = $entry.TrimStart('\')
+            if ($ScopePrefix -and $rel.StartsWith("$ScopePrefix\", [System.StringComparison]::OrdinalIgnoreCase)) {
+                $rel = $rel.Substring($ScopePrefix.Length + 1)
+            }
+            $candidate = (Join-Path -Path $BaseRoot -ChildPath $rel).TrimEnd('\')
+        }
+        else {
+            $candidate = $entry
+        }
+
+        if ($seen.Add($candidate)) {
+            $resolved.Add($candidate)
+        }
+    }
+
+    return $resolved.ToArray()
+}
+
 function Invoke-SafeRobocopy {
     [CmdletBinding()]
     param(
@@ -525,6 +570,7 @@ Export-ModuleMember -Function @(
     'Format-Duration',
     'Write-ProgressBar',
     'Backup-ConflictingFiles',
+    'Resolve-ExcludeDirs',
     'Invoke-SafeRobocopy',
     'Write-BackupManifest',
     'Read-BackupManifest',

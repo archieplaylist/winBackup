@@ -25,6 +25,17 @@
     ".bashrc",
     ".zshrc"
   ],
+  "userDataExcludeDirs": [
+    "SteamLibrary",
+    "steamapps",
+    "Steam\\steamapps",
+    "Steam\\depotcache",
+    "Steam\\shadercache",
+    "Steam\\downloading",
+    "Steam\\workshop"
+  ],
+  "userDataExcludeFiles": [],
+  "excludeSteamGames": true,
   "appDataScopes": [
     "Roaming",
     "Local",
@@ -81,6 +92,13 @@
     "Spotify\\Data",
     "Spotify\\Storage",
     "Steam\\htmlcache",
+    "Steam\\steamapps",
+    "Steam\\depotcache",
+    "Steam\\shadercache",
+    "Steam\\downloading",
+    "Steam\\workshop",
+    "SteamLibrary",
+    "steamapps",
     "NVIDIA\\DXCache",
     "NVIDIA\\GLCache",
     "AMD\\DxCache",

@@ -45,6 +45,9 @@ Each category also logs its name, position (`Category 2 of 6`), and elapsed time
 # Dry-run selective backup (preview only, writes nothing)
 .\WinBackup.ps1 -Mode Backup -BackupRoot D:\WinBackups -Categories UserData,BrowserData,WifiProfiles -DryRun
 
+# Backup with extra excluded folders or file patterns
+.\WinBackup.ps1 -Mode Backup -BackupRoot D:\WinBackups -ExcludeDirs "SteamLibrary","Games","D:\Downloads\ISOs" -ExcludeFiles "*.iso"
+
 # Verify a backup before wiping your PC
 .\WinBackup.ps1 -Mode Verify -BackupPath D:\WinBackups\WinBackup_MYPC_20261126_153000
 
@@ -67,6 +70,8 @@ Each category also logs its name, position (`Category 2 of 6`), and elapsed time
 
 Edit [`config.json`](config.json) to customize:
 - `userFolders` & `userDotfiles`
+- `userDataExcludeDirs`, `userDataExcludeFiles` (excludes Steam game folders like `SteamLibrary`, `steamapps`, `Steam\steamapps`, `Steam\depotcache`, `Steam\shadercache`, `Steam\downloading`, `Steam\workshop` by default; supports folder names, relative subpaths, or full paths)
+- `excludeSteamGames` (when `true`, omits Steam game entries from the `InstalledApps` Win32 inventory while keeping the Steam client itself)
 - `appDataScopes`, `appDataExcludeDirs`, `appDataExcludeFiles`
 - `browserCacheExcludeDirs`, `browserCacheExcludeFiles`
 - `robocopyThreads`, `robocopyRetries`, `robocopyWaitSeconds`

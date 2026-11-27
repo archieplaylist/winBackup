@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     WinBackup — Manual Windows 10/11 Backup & Restore Toolkit.
@@ -38,6 +38,9 @@ param(
     [switch]$EncryptSensitive,
     [switch]$NoEncrypt,
     [switch]$NonInteractive,
+
+    [string[]]$ExcludeDirs = @(),
+    [string[]]$ExcludeFiles = @(),
 
     [string]$ConfigPath = ''
 )
@@ -143,6 +146,8 @@ function Invoke-BackupWorkflow {
         [string]$DestinationRoot,
         [string[]]$SelectedCategories,
         [bool]$UseEncryption,
+        [string[]]$ExtraExcludeDirs = @(),
+        [string[]]$ExtraExcludeFiles = @(),
         [switch]$IsDryRun,
         [switch]$IsNonInteractive
     )
@@ -167,6 +172,12 @@ function Invoke-BackupWorkflow {
     Write-Log "Source: $($ctx.UserDomain)\$($ctx.UserName) on $($ctx.ComputerName) ($($ctx.OSCaption))" -Level INFO
     Write-Log "Target: $backupDir" -Level INFO
     Write-Log "Categories: $($SelectedCategories -join ', ')" -Level INFO
+    if ($ExtraExcludeDirs -and $ExtraExcludeDirs.Count -gt 0) {
+        Write-Log "Extra excluded folders: $($ExtraExcludeDirs -join ', ')" -Level INFO
+    }
+    if ($ExtraExcludeFiles -and $ExtraExcludeFiles.Count -gt 0) {
+        Write-Log "Extra excluded files: $($ExtraExcludeFiles -join ', ')" -Level INFO
+    }
 
     if (-not (Test-IsAdmin)) {
         Write-Log 'Not running as Administrator. Wi-Fi key export and some system operations may fail.' -Level WARN
@@ -199,10 +210,12 @@ function Invoke-BackupWorkflow {
         switch ($category) {
             'UserData' {
                 $results['UserData'] = Backup-UserData -BackupDir $backupDir -Config $Config `
+                    -ExtraExcludeDirs $ExtraExcludeDirs -ExtraExcludeFiles $ExtraExcludeFiles `
                     -DryRun:$IsDryRun -ShowProgress:$showProgress -Activity $activity
             }
             'AppData' {
                 $results['AppData'] = Backup-AppData -BackupDir $backupDir -Config $Config `
+                    -ExtraExcludeDirs $ExtraExcludeDirs -ExtraExcludeFiles $ExtraExcludeFiles `
                     -DryRun:$IsDryRun -ShowProgress:$showProgress -Activity $activity
             }
             'BrowserData' {
@@ -219,7 +232,7 @@ function Invoke-BackupWorkflow {
                     -EncryptionPassword $encPassword -DryRun:$IsDryRun
             }
             'InstalledApps' {
-                $results['InstalledApps'] = Backup-InstalledApps -BackupDir $backupDir -DryRun:$IsDryRun
+                $results['InstalledApps'] = Backup-InstalledApps -BackupDir $backupDir -Config $Config -DryRun:$IsDryRun
             }
         }
 
@@ -434,7 +447,7 @@ function Show-InteractiveMenu {
                     $dest = if ($BackupRoot) { $BackupRoot } else { Read-Host 'Backup destination root folder (e.g. D:\WinBackups)' }
                     $useEnc = Read-UserConfirmation -Prompt 'Encrypt sensitive data (Wi-Fi keys & Windows Credentials) with a password?' -DefaultYes $true
                     $dry = Read-UserConfirmation -Prompt 'Run in Dry-Run (preview only) mode?' -DefaultYes $false
-                    Invoke-BackupWorkflow -DestinationRoot $dest -SelectedCategories $AllCategories -UseEncryption $useEnc -IsDryRun:$dry
+                    Invoke-BackupWorkflow -DestinationRoot $dest -SelectedCategories $AllCategories -UseEncryption $useEnc -ExtraExcludeDirs $ExcludeDirs -ExtraExcludeFiles $ExcludeFiles -IsDryRun:$dry
                 }
                 '2' {
                     $dest = if ($BackupRoot) { $BackupRoot } else { Read-Host 'Backup destination root folder (e.g. D:\WinBackups)' }
@@ -444,7 +457,7 @@ function Show-InteractiveMenu {
                         $useEnc = Read-UserConfirmation -Prompt 'Encrypt sensitive data (Wi-Fi keys & Windows Credentials) with a password?' -DefaultYes $true
                     }
                     $dry = Read-UserConfirmation -Prompt 'Run in Dry-Run (preview only) mode?' -DefaultYes $false
-                    Invoke-BackupWorkflow -DestinationRoot $dest -SelectedCategories $cats -UseEncryption $useEnc -IsDryRun:$dry
+                    Invoke-BackupWorkflow -DestinationRoot $dest -SelectedCategories $cats -UseEncryption $useEnc -ExtraExcludeDirs $ExcludeDirs -ExtraExcludeFiles $ExcludeFiles -IsDryRun:$dry
                 }
                 '3' {
                     $targetDir = Prompt-SelectBackupFolder -RootHint $(if ($BackupPath) { $BackupPath } else { $BackupRoot })
@@ -480,7 +493,7 @@ switch ($Mode) {
     'Backup' {
         $cats = Resolve-SelectedCategories -InputCategories $Categories
         $useEnc = if ($NoEncrypt) { $false } elseif ($EncryptSensitive) { $true } else { $true }
-        Invoke-BackupWorkflow -DestinationRoot $BackupRoot -SelectedCategories $cats -UseEncryption $useEnc -IsDryRun:$DryRun -IsNonInteractive:$NonInteractive
+        Invoke-BackupWorkflow -DestinationRoot $BackupRoot -SelectedCategories $cats -UseEncryption $useEnc -ExtraExcludeDirs $ExcludeDirs -ExtraExcludeFiles $ExcludeFiles -IsDryRun:$DryRun -IsNonInteractive:$NonInteractive
     }
     'Restore' {
         $target = if (-not [string]::IsNullOrWhiteSpace($BackupPath)) { $BackupPath } else { Prompt-SelectBackupFolder -RootHint $BackupRoot }

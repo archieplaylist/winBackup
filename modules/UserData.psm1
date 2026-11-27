@@ -55,6 +55,8 @@ function Backup-UserData {
         [Parameter(Mandatory = $true)]
         [PSCustomObject]$Config,
 
+        [string[]]$ExtraExcludeDirs = @(),
+        [string[]]$ExtraExcludeFiles = @(),
         [switch]$DryRun,
         [switch]$ShowProgress,
         [string]$Activity = 'UserData'
@@ -71,6 +73,23 @@ function Backup-UserData {
         warnings         = @()
     }
 
+    $configuredExcludeDirs = @()
+    if ($Config.PSObject.Properties['userDataExcludeDirs'] -and $Config.userDataExcludeDirs) {
+        $configuredExcludeDirs = @($Config.userDataExcludeDirs)
+    }
+
+    $allExcludeFiles = @()
+    if ($Config.PSObject.Properties['userDataExcludeFiles'] -and $Config.userDataExcludeFiles) {
+        $allExcludeFiles += @($Config.userDataExcludeFiles)
+    }
+    if ($ExtraExcludeFiles) {
+        $allExcludeFiles += @($ExtraExcludeFiles)
+    }
+
+    $rawExcludeDirs = @()
+    if ($configuredExcludeDirs) { $rawExcludeDirs += $configuredExcludeDirs }
+    if ($ExtraExcludeDirs) { $rawExcludeDirs += @($ExtraExcludeDirs) }
+
     foreach ($folderName in $Config.userFolders) {
         $srcPath = Resolve-KnownFolderPath -FolderName $folderName
         if (-not (Test-Path -LiteralPath $srcPath)) {
@@ -79,8 +98,31 @@ function Backup-UserData {
             continue
         }
 
+        $cleanSrcPath = $srcPath.TrimEnd('\')
+        $skipFolder = $false
+        foreach ($ex in $rawExcludeDirs) {
+            if ([string]::IsNullOrWhiteSpace($ex)) { continue }
+            $trimmedEx = $ex.Trim().TrimEnd('\')
+            if ($trimmedEx.Equals($folderName, [System.StringComparison]::OrdinalIgnoreCase) -or
+                $trimmedEx.Equals($cleanSrcPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $skipFolder = $true
+                break
+            }
+        }
+        if ($skipFolder) {
+            Write-Log "Skipping excluded known folder: $folderName ($srcPath)" -Level INFO
+            continue
+        }
+
         $targetDir = Join-Path -Path $foldersDest -ChildPath $folderName
+        $excludeDirs = Resolve-ExcludeDirs -BaseRoot $srcPath `
+            -ExcludeDirs $configuredExcludeDirs `
+            -ExtraExcludeDirs $ExtraExcludeDirs `
+            -ScopePrefix $folderName
+
         $res = Invoke-SafeRobocopy -Source $srcPath -Destination $targetDir `
+            -ExcludeDirs $excludeDirs `
+            -ExcludeFiles $allExcludeFiles `
             -Threads $Config.robocopyThreads `
             -Retries $Config.robocopyRetries `
             -WaitSeconds $Config.robocopyWaitSeconds `

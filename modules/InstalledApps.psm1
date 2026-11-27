@@ -4,9 +4,35 @@
     Backup and restore Installed Apps (winget export/import + Win32 Registry + Store AppX + Scoop/Chocolatey).
 #>
 
+function Test-IsSteamGameEntry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [PSObject]$RegistryItem
+    )
+
+    if ($RegistryItem.PSChildName -like 'Steam App *') {
+        return $true
+    }
+
+    $uninstallStr = if ($RegistryItem.UninstallString) { [string]$RegistryItem.UninstallString } else { '' }
+    if ($uninstallStr -match '(?i)steam://uninstall/') {
+        return $true
+    }
+
+    $installLoc = if ($RegistryItem.InstallLocation) { [string]$RegistryItem.InstallLocation } else { '' }
+    if ($installLoc -match '(?i)\\steamapps\\') {
+        return $true
+    }
+
+    return $false
+}
+
 function Get-Win32InstalledApps {
     [CmdletBinding()]
-    param()
+    param(
+        [switch]$ExcludeSteamGames
+    )
 
     $regPaths = @(
         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
@@ -15,11 +41,16 @@ function Get-Win32InstalledApps {
     )
 
     $apps = @()
+    $excludedSteamCount = 0
     foreach ($path in $regPaths) {
         $items = Get-ItemProperty -Path $path -ErrorAction SilentlyContinue
         foreach ($item in $items) {
             if ([string]::IsNullOrWhiteSpace($item.DisplayName)) { continue }
             if ($item.SystemComponent -eq 1) { continue }
+            if ($ExcludeSteamGames -and (Test-IsSteamGameEntry -RegistryItem $item)) {
+                $excludedSteamCount++
+                continue
+            }
 
             $apps += [PSCustomObject]@{
                 Name            = $item.DisplayName.Trim()
@@ -32,6 +63,10 @@ function Get-Win32InstalledApps {
         }
     }
 
+    if ($ExcludeSteamGames -and $excludedSteamCount -gt 0) {
+        Write-Log "Excluded $excludedSteamCount Steam game(s) from Win32 installed apps list." -Level INFO
+    }
+
     return ($apps | Sort-Object -Property Name, Version -Unique)
 }
 
@@ -41,11 +76,18 @@ function Backup-InstalledApps {
         [Parameter(Mandatory = $true)]
         [string]$BackupDir,
 
+        [PSCustomObject]$Config = $null,
+
         [switch]$DryRun
     )
 
     Write-Log '=== Starting Installed Apps Backup ===' -Level INFO
     $destRoot = Join-Path -Path $BackupDir -ChildPath 'apps'
+
+    $excludeSteamGames = $false
+    if ($Config -and $Config.PSObject.Properties['excludeSteamGames']) {
+        $excludeSteamGames = [bool]$Config.excludeSteamGames
+    }
 
     $stats = [ordered]@{
         wingetExported = $false
@@ -57,7 +99,7 @@ function Backup-InstalledApps {
     }
 
     if ($DryRun) {
-        $win32 = @(Get-Win32InstalledApps)
+        $win32 = @(Get-Win32InstalledApps -ExcludeSteamGames:$excludeSteamGames)
         $stats.win32Count = $win32.Count
         Write-Log "[DryRun] Would export winget JSON, $($win32.Count) Win32 apps, Store apps, and summary Markdown to '$destRoot'." -Level DRYRUN
         return $stats
@@ -86,7 +128,7 @@ function Backup-InstalledApps {
     }
 
     # 2. Win32 Registry Uninstall list
-    $win32Apps = @(Get-Win32InstalledApps)
+    $win32Apps = @(Get-Win32InstalledApps -ExcludeSteamGames:$excludeSteamGames)
     $stats.win32Count = $win32Apps.Count
     $win32Csv = Join-Path -Path $destRoot -ChildPath 'installed-apps-win32.csv'
     $win32Apps | Export-Csv -LiteralPath $win32Csv -NoTypeInformation -Encoding UTF8

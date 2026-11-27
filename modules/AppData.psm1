@@ -25,20 +25,12 @@ function Expand-ScopeExclusions {
         [Parameter(Mandatory = $true)]
         [string]$ScopeRoot,
 
-        [string[]]$ExcludeDirs
+        [string[]]$ExcludeDirs = @(),
+        [string[]]$ExtraExcludeDirs = @(),
+        [string]$ScopePrefix = ''
     )
 
-    $resolved = New-Object System.Collections.Generic.List[string]
-    foreach ($entry in $ExcludeDirs) {
-        if ([string]::IsNullOrWhiteSpace($entry)) { continue }
-        if ($entry.Contains('\')) {
-            $resolved.Add((Join-Path -Path $ScopeRoot -ChildPath $entry))
-        }
-        else {
-            $resolved.Add($entry)
-        }
-    }
-    return $resolved.ToArray()
+    return (Resolve-ExcludeDirs -BaseRoot $ScopeRoot -ExcludeDirs $ExcludeDirs -ExtraExcludeDirs $ExtraExcludeDirs -ScopePrefix $ScopePrefix)
 }
 
 function Backup-AppData {
@@ -50,6 +42,8 @@ function Backup-AppData {
         [Parameter(Mandatory = $true)]
         [PSCustomObject]$Config,
 
+        [string[]]$ExtraExcludeDirs = @(),
+        [string[]]$ExtraExcludeFiles = @(),
         [switch]$DryRun,
         [switch]$ShowProgress,
         [string]$Activity = 'AppData'
@@ -63,6 +57,10 @@ function Backup-AppData {
         warnings       = @()
     }
 
+    $allExcludeFiles = @()
+    if ($Config.appDataExcludeFiles) { $allExcludeFiles += @($Config.appDataExcludeFiles) }
+    if ($ExtraExcludeFiles) { $allExcludeFiles += @($ExtraExcludeFiles) }
+
     foreach ($scope in $Config.appDataScopes) {
         $srcPath = Get-AppDataScopePath -Scope $scope
         if (-not (Test-Path -LiteralPath $srcPath)) {
@@ -71,11 +69,14 @@ function Backup-AppData {
         }
 
         $targetDir = Join-Path -Path $destRoot -ChildPath $scope
-        $excludeDirs = Expand-ScopeExclusions -ScopeRoot $srcPath -ExcludeDirs $Config.appDataExcludeDirs
+        $excludeDirs = Expand-ScopeExclusions -ScopeRoot $srcPath `
+            -ExcludeDirs $Config.appDataExcludeDirs `
+            -ExtraExcludeDirs $ExtraExcludeDirs `
+            -ScopePrefix $scope
 
         $res = Invoke-SafeRobocopy -Source $srcPath -Destination $targetDir `
             -ExcludeDirs $excludeDirs `
-            -ExcludeFiles $Config.appDataExcludeFiles `
+            -ExcludeFiles $allExcludeFiles `
             -Threads $Config.robocopyThreads `
             -Retries $Config.robocopyRetries `
             -WaitSeconds $Config.robocopyWaitSeconds `
